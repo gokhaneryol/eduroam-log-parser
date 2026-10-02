@@ -18,7 +18,7 @@ __all__ = ["iter_file", "process_directory"]
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = "2.0.0"
+SCHEMA_VERSION = "3.0.0"
 
 
 def iter_file(
@@ -53,17 +53,25 @@ def iter_file(
         log.warning("Skipped (corrupt/partial): %s — %s", path.name, exc)
 
 
-def _collect_files(data_dir: Path, source: str) -> list[Path]:
-    """Return sorted file list for a given source type."""
-    if source == "fticks":
-        return sorted(data_dir.glob("trrad-ng.log*"))
+DEFAULT_GLOBS = {"fticks": "trrad-ng.log*", "radius": "radius.log*"}
+
+
+def _collect_files(data_dir: Path, source: str, globs: dict | None = None) -> list[Path]:
+    """Return sorted file list for a given source type.
+
+    ``globs`` overrides the file-name patterns per source. Defaults keep the
+    0.1.x behaviour (``trrad-ng.log*`` for F-TICKS, ``radius.log*`` for
+    radius, plus a ``trrad/`` sub-directory for radius files).
+    """
+    pattern = {**DEFAULT_GLOBS, **(globs or {})}.get(source)
+    if pattern is None:
+        return []
+    files = list(data_dir.glob(pattern))
     if source == "radius":
-        files = list(data_dir.glob("radius.log*"))
         sub = data_dir / "trrad"
         if sub.is_dir():
-            files += list(sub.glob("radius.log*"))
-        return sorted(files)
-    return []
+            files += list(sub.glob(pattern))
+    return sorted(files)
 
 
 def process_directory(
@@ -72,6 +80,7 @@ def process_directory(
     salt: str,
     sources: Iterable[str] = ("fticks", "radius"),
     limit: int = 0,
+    globs: Optional[dict] = None,
 ) -> dict:
     """Parse all log files in *data_dir* and write JSONL output to *output_dir*.
 
@@ -88,6 +97,8 @@ def process_directory(
         Which log types to process: any subset of ``{"fticks", "radius"}``.
     limit:
         Maximum number of records to emit per source (``0`` = unlimited).
+    globs:
+        Optional ``{"fticks": "...", "radius": "..."}`` file-name patterns.
 
     Returns
     -------
@@ -120,7 +131,7 @@ def process_directory(
             continue
 
         parser_fn, out_name = _parsers[source]
-        files = _collect_files(data_dir, source)
+        files = _collect_files(data_dir, source, globs)
         log.info("%s: %d file(s) found", source, len(files))
 
         n_parsed = 0

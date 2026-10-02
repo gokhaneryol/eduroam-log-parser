@@ -60,7 +60,8 @@ class TestParseFticks:
         assert r is not None
         assert r["result"] == "FAIL"
         assert r["realm_signal"] == "well_known_public_domain"
-        assert r["failure_category"] == "public_domain_auth_failure"
+        assert r["failure_category"] == "public_domain_rejected"
+        assert r["failure_category_legacy"] == "public_domain_auth_failure"
         assert r["failure_layer"] == "policy"
 
     def test_repeated_line_skipped(self):
@@ -81,6 +82,7 @@ class TestParseFticks:
             "visinst_hash", "visinst_country",
             "outer_identity_type", "realm_signal",
             "failure_category", "failure_layer", "failure_reason",
+            "failure_category_legacy", "taxonomy_version",
         }
         assert required.issubset(r.keys())
 

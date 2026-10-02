@@ -22,12 +22,14 @@ from typing import Optional
 
 from eduroam_log_parser.anonymize import (
     anonymize,
-    anonymize_ips_in_text,
     anonymize_mac,
+    anonymize_reason,
     extract_tld,
 )
 from eduroam_log_parser.classify import (
+    TAXONOMY_VERSION,
     classify_failure,
+    classify_failure_legacy,
     classify_outer_identity,
     classify_realm_signal,
 )
@@ -35,7 +37,7 @@ from eduroam_log_parser.utils import normalize_ts
 
 __all__ = ["parse_radius_auth"]
 
-SCHEMA_VERSION = "2.0.0"
+SCHEMA_VERSION = "3.0.0"
 
 _AUTH_OK = re.compile(
     r"^(?P<ts>.+?)\s*:\s*Auth:\s*\(\d+\)\s+Login OK:\s*\[(?P<user>[^\]]+)\]\s+"
@@ -73,10 +75,10 @@ def parse_radius_auth(line: str, salt: str) -> Optional[dict]:
 
     Record fields
     -------------
-    schema_version, log_type, timestamp, result,
+    schema_version, taxonomy_version, log_type, timestamp, result,
     username_hash, mac_hash, realm_hash, realm_tld, nas_hash,
     outer_identity_type, realm_signal,
-    failure_category, failure_layer, failure_reason,
+    failure_category, failure_layer, failure_category_legacy, failure_reason,
     port, via_tunnel
     """
     line = line.rstrip()
@@ -92,7 +94,7 @@ def parse_radius_auth(line: str, salt: str) -> Optional[dict]:
         cli_raw     = m.group("cli") or ""
         nas_raw     = m.group("client")
         reason_raw  = (m.group("reason") if "reason" in m.groupdict() else "") or ""
-        reason_clean = anonymize_ips_in_text(reason_raw, salt)
+        reason_clean = anonymize_reason(reason_raw, salt)
 
         local     = user_raw.rsplit("@", 1)[0] if "@" in user_raw else user_raw
         realm_raw = user_raw.rsplit("@", 1)[1].lower() if "@" in user_raw else ""
@@ -100,9 +102,11 @@ def parse_radius_auth(line: str, salt: str) -> Optional[dict]:
         realm_signal = classify_realm_signal(user_raw)
         oit          = classify_outer_identity(local)
         fcat, flayer = classify_failure(reason_raw, result, realm_signal)
+        fcat_legacy, _ = classify_failure_legacy(reason_raw, result, realm_signal)
 
         return {
             "schema_version":      SCHEMA_VERSION,
+            "taxonomy_version":    TAXONOMY_VERSION,
             "log_type":            "radius_auth",
             "timestamp":           normalize_ts(m.group("ts").strip()),
             "result":              result,
@@ -115,6 +119,7 @@ def parse_radius_auth(line: str, salt: str) -> Optional[dict]:
             "realm_signal":        realm_signal,
             "failure_category":    fcat,
             "failure_layer":       flayer,
+            "failure_category_legacy": fcat_legacy,
             "failure_reason":      reason_clean,
             "port":                int(m.group("port")) if m.group("port") else 0,
             "via_tunnel":          bool(m.group("tun")),

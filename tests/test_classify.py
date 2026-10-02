@@ -12,7 +12,7 @@ class TestClassifyRealmSignal:
         assert classify_realm_signal("user@university.edu.tr") == "syntactically_valid"
 
     def test_institution_subrealm(self):
-        assert classify_realm_signal("230102044@ogr.alanya.edu.tr") == "institution_subrealm"
+        assert classify_realm_signal("2023000001@ogr.example.edu.tr") == "institution_subrealm"
         assert classify_realm_signal("u@student.uni.ac.uk") == "institution_subrealm"
 
     def test_well_known_public_domain(self):
@@ -51,7 +51,7 @@ class TestClassifyOuterIdentity:
         assert classify_outer_identity("Anonymous") == "anonymous"
 
     def test_numeric(self):
-        assert classify_outer_identity("230102044") == "numeric_identifier"
+        assert classify_outer_identity("2023000001") == "numeric_identifier"
 
     def test_institutional(self):
         assert classify_outer_identity("jsmith") == "institutional_format"
@@ -73,7 +73,7 @@ class TestClassifyFailure:
     def test_ok_misrouted_warning(self):
         cat, layer = classify_failure("", "OK", "misrouted_local_subdomain")
         assert cat == "misconfiguration_warning"
-        assert layer == "radius_proxy"
+        assert layer == "policy"
 
     def test_tls_failure(self):
         cat, layer = classify_failure("TLS Alert read:fatal:handshake failure", "FAIL", "syntactically_valid")
@@ -87,14 +87,14 @@ class TestClassifyFailure:
 
     def test_proxy_timeout(self):
         cat, layer = classify_failure("proxy timeout", "FAIL", "syntactically_valid")
-        assert cat == "proxy_timeout"
+        assert cat == "timeout_or_no_response"
         assert layer == "radius_proxy"
 
     def test_fticks_public_domain(self):
         cat, layer = classify_failure("", "FAIL", "well_known_public_domain")
-        assert cat == "public_domain_auth_failure"
+        assert cat == "public_domain_rejected"
         assert layer == "policy"
 
     def test_fticks_no_detail(self):
         cat, layer = classify_failure("", "FAIL", "syntactically_valid")
-        assert cat == "no_detail_in_fticks"
+        assert cat == "unspecified_failure"

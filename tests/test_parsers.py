@@ -5,29 +5,29 @@ from eduroam_log_parser.parsers import parse_fticks, parse_radius_auth
 SALT = "testsalt"
 
 # ---------------------------------------------------------------------------
-# Sample lines taken from real log format (values are real-world examples
-# that will be publicly visible in the HuggingFace dataset anyway)
+# Sample lines follow the real log formats; every identifier is synthetic
+# (example domains, RFC 7042 documentation MAC range).
 # ---------------------------------------------------------------------------
 
 FTICKS_OK = (
-    "2025-10-05T00:00:28+03:00 trrad-ng freeradius: "
-    "F-TICKS/eduroam/1.0#REALM=ogr.alanya.edu.tr#VISCOUNTRY=TR"
-    "#VISINST=1etlr1.eduroam.org#USERNAME=230102044@ogr.alanya.edu.tr"
-    "#CSI=F2-FB-B6-1C-3B-13#RESULT=OK#"
+    "2025-10-05T00:00:28+03:00 radius1 freeradius: "
+    "F-TICKS/eduroam/1.0#REALM=ogr.example.edu.tr#VISCOUNTRY=TR"
+    "#VISINST=1visited.example.org#USERNAME=2023000001@ogr.example.edu.tr"
+    "#CSI=00-00-5E-00-53-01#RESULT=OK#"
 )
 
 FTICKS_FAIL_GMAIL = (
-    "2025-10-05T00:00:27+03:00 trrad-ng freeradius: "
+    "2025-10-05T00:00:27+03:00 radius1 freeradius: "
     "F-TICKS/eduroam/1.0#REALM=gmail.com#VISCOUNTRY=TR"
-    "#VISINST=1mku.edu.tr#USERNAME=user@gmail.com"
-    "#CSI=5058B04CEC2C#RESULT=FAIL#"
+    "#VISINST=1campus.example.edu.tr#USERNAME=user@gmail.com"
+    "#CSI=00005E005302#RESULT=FAIL#"
 )
 
 FTICKS_REPEATED = (
-    "2025-10-05T00:00:37+03:00 trrad-ng freeradius: "
+    "2025-10-05T00:00:37+03:00 radius1 freeradius: "
     "message repeated 2 times: [ F-TICKS/eduroam/1.0#REALM=gmail.com"
-    "#VISCOUNTRY=TR#VISINST=1mku.edu.tr#USERNAME=user@gmail.com"
-    "#CSI=5058B04CEC2C#RESULT=FAIL#]"
+    "#VISCOUNTRY=TR#VISINST=1campus.example.edu.tr#USERNAME=user@gmail.com"
+    "#CSI=00005E005302#RESULT=FAIL#]"
 )
 
 RADIUS_OK = (
@@ -52,15 +52,16 @@ class TestParseFticks:
         assert r["realm_signal"] == "institution_subrealm"
         assert r["failure_category"] == ""
         # PII must not appear in output
-        assert "ogr.alanya.edu.tr" not in str(r.values())
-        assert "230102044" not in str(r.values())
+        assert "ogr.example.edu.tr" not in str(r.values())
+        assert "2023000001" not in str(r.values())
 
     def test_fail_gmail(self):
         r = parse_fticks(FTICKS_FAIL_GMAIL, SALT)
         assert r is not None
         assert r["result"] == "FAIL"
         assert r["realm_signal"] == "well_known_public_domain"
-        assert r["failure_category"] == "public_domain_auth_failure"
+        assert r["failure_category"] == "public_domain_rejected"
+        assert r["failure_category_legacy"] == "public_domain_auth_failure"
         assert r["failure_layer"] == "policy"
 
     def test_repeated_line_skipped(self):
@@ -81,6 +82,7 @@ class TestParseFticks:
             "visinst_hash", "visinst_country",
             "outer_identity_type", "realm_signal",
             "failure_category", "failure_layer", "failure_reason",
+            "failure_category_legacy", "taxonomy_version",
         }
         assert required.issubset(r.keys())
 

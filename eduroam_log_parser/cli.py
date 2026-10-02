@@ -24,6 +24,8 @@ Options
 --sources       Which log types to process: fticks and/or radius.
 --limit         Max records per source (0 = unlimited).
 --log-level     Logging verbosity: DEBUG / INFO / WARNING.   Default: INFO
+--fticks-glob   File-name pattern for F-TICKS logs.          Default: trrad-ng.log*
+--radius-glob   File-name pattern for radius.log files.      Default: radius.log*
 """
 
 import argparse
@@ -80,6 +82,10 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Logging verbosity (default: INFO)",
     )
+    p.add_argument("--fticks-glob", default="trrad-ng.log*", metavar="PATTERN",
+                   help="File-name pattern for F-TICKS logs (default: trrad-ng.log*)")
+    p.add_argument("--radius-glob", default="radius.log*", metavar="PATTERN",
+                   help="File-name pattern for radius.log files (default: radius.log*)")
     return p
 
 
@@ -104,6 +110,7 @@ def main(argv: list[str] | None = None) -> None:
         salt=args.salt,
         sources=args.sources,
         limit=args.limit,
+        globs={"fticks": args.fticks_glob, "radius": args.radius_glob},
     )
 
     sep = "=" * 55

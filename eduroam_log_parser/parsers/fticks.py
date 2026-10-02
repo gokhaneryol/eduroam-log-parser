@@ -20,7 +20,9 @@ from eduroam_log_parser.anonymize import (
     extract_tld,
 )
 from eduroam_log_parser.classify import (
+    TAXONOMY_VERSION,
     classify_failure,
+    classify_failure_legacy,
     classify_outer_identity,
     classify_realm_signal,
 )
@@ -28,7 +30,7 @@ from eduroam_log_parser.utils import normalize_ts
 
 __all__ = ["parse_fticks"]
 
-SCHEMA_VERSION = "2.0.0"
+SCHEMA_VERSION = "3.0.0"
 
 _FTICKS_LINE = re.compile(
     r"^(?P<ts>\S+)\s+\S+\s+freeradius:\s+F-TICKS/eduroam/[\d.]+#(?P<fields>.+)#\s*$"
@@ -56,11 +58,11 @@ def parse_fticks(line: str, salt: str) -> Optional[dict]:
 
     Record fields
     -------------
-    schema_version, log_type, timestamp, result,
+    schema_version, taxonomy_version, log_type, timestamp, result,
     username_hash, mac_hash, realm_hash, realm_tld,
     visinst_hash, visinst_country,
     outer_identity_type, realm_signal,
-    failure_category, failure_layer, failure_reason
+    failure_category, failure_layer, failure_category_legacy, failure_reason
     """
     line = line.rstrip()
     if not line or _REPEATED.search(line):
@@ -83,13 +85,23 @@ def parse_fticks(line: str, salt: str) -> Optional[dict]:
     csi_raw      = fields.get("CSI", "")
     result       = fields.get("RESULT", "").upper()
 
-    local = username_raw.rsplit("@", 1)[0] if "@" in username_raw else username_raw
-    realm_signal = classify_realm_signal(username_raw)
-    oit          = classify_outer_identity(local)
+    # Standard F-TICKS (GÉANT) has no USERNAME field. Some federations add it.
+    # Without it, classify the realm alone; the local part is then unknown.
+    if username_raw:
+        identity = username_raw
+        local = username_raw.rsplit("@", 1)[0] if "@" in username_raw else username_raw
+        oit = classify_outer_identity(local)
+    else:
+        identity = f"@{fields.get('REALM', '')}"
+        local = ""
+        oit = "unknown"
+    realm_signal = classify_realm_signal(identity)
     fcat, flayer = classify_failure("", result, realm_signal)
+    fcat_legacy, _ = classify_failure_legacy("", result, realm_signal)
 
     return {
         "schema_version":      SCHEMA_VERSION,
+        "taxonomy_version":    TAXONOMY_VERSION,
         "log_type":            "fticks",
         "timestamp":           normalize_ts(m.group("ts")),
         "result":              result,
@@ -103,5 +115,6 @@ def parse_fticks(line: str, salt: str) -> Optional[dict]:
         "realm_signal":        realm_signal,
         "failure_category":    fcat,
         "failure_layer":       flayer,
+        "failure_category_legacy": fcat_legacy,
         "failure_reason":      "",
     }
